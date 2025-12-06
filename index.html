@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strudel Live Preview</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        h1 {
+            text-align: center;
+            color: #4caf50;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .connected { background-color: #2d5a27; }
+        .disconnected { background-color: #5a2727; }
+        strudel-editor {
+            display: block;
+            width: 100%;
+            height: 400px;
+            margin: 20px 0;
+            border: 2px solid #333;
+            border-radius: 8px;
+        }
+        .note {
+            background-color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 Strudel Live Preview</h1>
+    
+    <div class="note">
+        <strong>How to use:</strong>
+        <br>• Edit your Strudel code in the editor below
+        <br>• Click the ▶️ play button to hear your music
+        <br>• WebSocket connects to Unreal Engine automatically
+    </div>
+    
+    <div id="wsStatus" class="status disconnected">WebSocket: Connecting...</div>
+
+    <!-- Your Strudel Editor -->
+    <script src="https://unpkg.com/@strudel/repl@latest"></script>
+    <strudel-editor>
+      <!--
+// LEVEL MUSIC
+samples('github:yaxu/clean-breaks')
+setcpm(144/4)
+
+let chords = chord(`<
+Ebm11 F#13 Amb6 G11 A#^7#11@4 A#^7#11@4
+>`).orbit(2)
+
+$: chords.voicing().sound("gm_epiano1:1").leslie(1).gain(".35 ").early(.01).room(".7").pan(sine.slow(2))
+
+$: n("<8 [7 -] 1 [5 -] 1 2 [1 6 7] [1 0] 9 [4 [2]]>*4").set(chords).voicing().dec(6).sound(stack(saw, square).range(2, 18)).transpose("-24").early(.01).gain(.3 )
+  .lpf("1000")
+  .lpa(".3")
+  .lpd(".1")
+  .lps("0")
+  .lpr("0")
+
+$: s('amen/4')
+  .splice(16, "<1 1 4 3 1 4 1 8>*4").gain(".6").late(.2).room(".2").lpf("5000").crush("9 10 16")
+
+$: s("bd [bd bd] bd").bank("compurhythm8000").attack(".01").early(.025).gain(.4).transpose("9").compressor("-15:10:5:.002:.02") 
+  .duckorbit(2)
+  .duckattack(0.2)
+  .duckdepth(.4)
+      -->
+    </strudel-editor>
+
+    <!-- Simple WebSocket Connection -->
+    <script>
+        let ws = null;
+        const status = document.getElementById('wsStatus');
+
+        function connect() {
+            if (ws?.readyState === WebSocket.OPEN) return;
+
+            try {
+                ws = new WebSocket('ws://localhost:8080');
+                
+                ws.onopen = () => {
+                    status.textContent = 'WebSocket: Connected to Unreal Engine';
+                    status.className = 'status connected';
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    console.log('OSC from Unreal:', data.address, data.args);
+                };
+
+                ws.onclose = () => {
+                    status.textContent = 'WebSocket: Disconnected';
+                    status.className = 'status disconnected';
+                    setTimeout(connect, 3000); // Auto-reconnect
+                };
+
+            } catch (error) {
+                console.error('WebSocket error:', error);
+            }
+        }
+
+        // Start connection when page loads
+        setTimeout(connect, 1000);
+    </script>
+
+    <!-- Strudel Initialization -->
+    <script>
+        // Wait for Strudel to load and initialize properly
+        window.addEventListener('load', async () => {
+            // Give Strudel time to fully initialize
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            try {
+                console.log('🎵 Starting sample pre-loading process...');
+                console.log('Attempting to load from: github:yaxu/clean-breaks');
+                
+                const result = await samples('github:yaxu/clean-breaks');
+                console.log('✅ Samples loaded successfully:', result);
+                console.log('Available samples:', Object.keys(result || {}));
+                
+                // Check specifically for breaks samples
+                if (result && result.breaks125) {
+                    console.log('🥁 Breaks125 samples found:', result.breaks125);
+                    console.log('Breaks125 sample count:', result.breaks125.length || 'unknown');
+                } else {
+                    console.warn('⚠️ No breaks125 samples found in result');
+                }
+                
+                // Check specifically for amen samples
+                if (result && result.amen) {
+                    console.log('🥁 Amen samples found:', result.amen);
+                    console.log('Amen sample count:', result.amen.length || 'unknown');
+                } else {
+                    console.warn('⚠️ No amen samples found in result');
+                }
+                
+                // Check for other sample types
+                if (result) {
+                    const sampleTypes = Object.keys(result);
+                    console.log('📦 All available sample types:', sampleTypes);
+                    sampleTypes.forEach(type => {
+                        if (Array.isArray(result[type])) {
+                            console.log(`  - ${type}: ${result[type].length} samples`);
+                        }
+                    });
+                }
+                
+                // Initialize audio context if needed
+                if (window.strudelAudioContext) {
+                    console.log('🔊 Initializing audio context...');
+                    await window.strudelAudioContext.resume();
+                    console.log('🔊 Audio context state:', window.strudelAudioContext.state);
+                }
+                
+            } catch (error) {
+                console.error('❌ Sample loading failed:');
+                console.error('Error type:', error.constructor.name);
+                console.error('Error message:', error.message);
+                console.error('Full error:', error);
+                console.error('Stack trace:', error.stack);
+                console.warn('Will try loading samples during playback instead');
+            }
+        });
+    </script>
+</body>
+</html>

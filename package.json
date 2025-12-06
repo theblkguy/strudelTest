@@ -1,0 +1,17 @@
+{
+  "name": "strudel-osc-bridge",
+  "version": "1.0.0",
+  "description": "OSC to WebSocket bridge for Unreal to Strudel communication",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node server.js"
+  },
+  "dependencies": {
+    "osc-js": "^2.4.1",
+    "ws": "^8.14.2"
+  },
+  "keywords": ["osc", "websocket", "strudel", "unreal"],
+  "author": "",
+  "license": "MIT"
+}
