@@ -124,10 +124,94 @@ $: s("bd [bd bd] bd").bank("compurhythm8000").attack(".01").early(.025).gain(.4)
     <script>
         // Wait for Strudel to load and initialize properly
         window.addEventListener('load', async () => {
-            // Give Strudel time to fully initialize
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            try {
+                        // Give Strudel time to fully initialize
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+
+                        // Debug helpers: capture errors/unhandled rejections and safely observe worklet loads
+                        (function() {
+                            window._dbgErrors = [];
+                            window.addEventListener('error', e => {
+                                console.group('Captured window.error');
+                                console.error(e.message);
+                                console.error('Source:', e.filename + ':' + e.lineno + ':' + e.colno);
+                                console.error(e.error && e.error.stack ? e.error.stack : '(no stack)');
+                                console.groupEnd();
+                                window._dbgErrors.push(e);
+                            });
+
+                            window.addEventListener('unhandledrejection', ev => {
+                                console.group('Captured unhandledrejection');
+                                console.error(ev.reason && ev.reason.stack ? ev.reason.stack : ev.reason);
+                                console.groupEnd();
+                                window._dbgErrors.push(ev);
+                            });
+
+                            // Safer approach: wait for an actual AudioContext instance and patch that instance's addModule
+                            function patchAudioContextInstance(ac) {
+                                if (!ac || !ac.audioWorklet || ac._dbgPatched) return;
+                                try {
+                                    const origAdd = ac.audioWorklet.addModule.bind(ac.audioWorklet);
+                                    ac.audioWorklet.addModule = async function(url, options) {
+                                        console.log('[DEBUG] audioWorklet.addModule called:', url);
+                                        try {
+                                            const res = await origAdd(url, options);
+                                            console.log('[DEBUG] addModule succeeded:', url);
+                                            return res;
+                                        } catch (err) {
+                                            console.error('[DEBUG] addModule FAILED for', url, err);
+                                            throw err;
+                                        }
+                                    };
+                                    ac._dbgPatched = true;
+                                } catch (err) {
+                                    console.warn('[DEBUG] patchAudioContextInstance failed', err);
+                                }
+                            }
+
+                            // Poll for a Strudel-provided audio context (`window.strudelAudioContext`) or any AudioContext
+                            const pollInterval = setInterval(() => {
+                                try {
+                                    if (window.strudelAudioContext) {
+                                        patchAudioContextInstance(window.strudelAudioContext);
+                                        clearInterval(pollInterval);
+                                        return;
+                                    }
+                                    // fallback: try to detect any AudioContext stored on window by common names
+                                    const candidates = ['audioContext','ac','ctx'];
+                                    for (const name of candidates) {
+                                        const v = window[name];
+                                        if (v && (v instanceof AudioContext || v.constructor && v.constructor.name === 'AudioContext')) {
+                                            patchAudioContextInstance(v);
+                                            clearInterval(pollInterval);
+                                            return;
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.warn('[DEBUG] polling for AudioContext failed', e);
+                                }
+                            }, 250);
+
+                            // Trace AudioWorkletNode construction attempts
+                            if (window.AudioWorkletNode) {
+                                try {
+                                    const OrigAWN = window.AudioWorkletNode;
+                                    window.AudioWorkletNode = function(context, name, opts) {
+                                        console.log('[DEBUG] Attempting new AudioWorkletNode:', name, opts);
+                                        try {
+                                            return new OrigAWN(context, name, opts);
+                                        } catch (err) {
+                                            console.error('[DEBUG] AudioWorkletNode construction failed for', name, err);
+                                            throw err;
+                                        }
+                                    };
+                                    window.AudioWorkletNode.prototype = OrigAWN.prototype;
+                                } catch (e) {
+                                    console.warn('[DEBUG] Could not wrap AudioWorkletNode constructor', e);
+                                }
+                            }
+                        })();
+
+                        try {
                 console.log('🎵 Starting sample pre-loading process...');
                 console.log('Attempting to load from: github:yaxu/clean-breaks');
                 
