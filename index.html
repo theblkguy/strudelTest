@@ -86,6 +86,23 @@ $: s("bd [bd bd] bd").bank("compurhythm8000").attack(".01").early(.025).gain(.4)
 
     <!-- Simple WebSocket Connection -->
     <script>
+        // Handler for amen volume changes from Unreal
+        function handleAmenVolumeChange(volume) {
+            console.log(`🔊 Amen volume OSC received: ${volume}`);
+            
+            // Store the target volume in window for Strudel patterns to access
+            window.amenVolume = volume;
+            
+            // If a Strudel volume control exists, apply it
+            // This requires Strudel patterns to check window.amenVolume or use a control node
+            // For now, we'll log it and show a status
+            const volPercent = (volume * 100).toFixed(0);
+            console.log(`🎵 Amen sample volume set to ${volPercent}%`);
+            
+            // Optional: you can add UI feedback here
+            // e.g., update a visual volume indicator on the page
+        }
+
         let ws = null;
         const status = document.getElementById('wsStatus');
 
@@ -103,6 +120,12 @@ $: s("bd [bd bd] bd").bank("compurhythm8000").attack(".01").early(.025).gain(.4)
                 ws.onmessage = (event) => {
                     const data = JSON.parse(event.data);
                     console.log('OSC from Unreal:', data.address, data.args);
+                    
+                    // Handle amen volume control from Unreal
+                    if (data.address === '/amen/volume' && data.args && data.args.length > 0) {
+                        const volume = parseFloat(data.args[0]);
+                        handleAmenVolumeChange(volume);
+                    }
                 };
 
                 ws.onclose = () => {
